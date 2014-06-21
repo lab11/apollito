@@ -48,7 +48,6 @@ def main():
 
     # Create ACME++ object
     acmepp = ACMEpp(ACMEpp_IPV6, ACMEpp_PORT)
-    acmepp.setOff()
 
     # process packets
     override_time = 0
