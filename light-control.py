@@ -52,6 +52,7 @@ def main():
     # process packets
     override_time = 0
     no_people_time = 0
+    occupancy_printed_time = 0
     while True:
         timeout = False
         pkt = None
@@ -74,6 +75,7 @@ def main():
         if (no_people_time != 0 and override_time == 0 and
                 (current_time - no_people_time) > 10*60):
             no_people_time = 0
+            occupancy_printed_time = 0
             acmepp.setOff()
             print(cur_datetime() + ": No occupancy for 10 minutes")
 
@@ -94,6 +96,7 @@ def main():
                 if 'button_id' in pkt and pkt['button_id'] == 25:
                     override_time = current_time
                     no_people_time = 0
+                    occupancy_printed_time = 0
                     acmepp.setOn()
                     print(cur_datetime() + ": Button Override!")
 
@@ -105,6 +108,7 @@ def main():
                 if len(pkt['person_list']) == 0:
                     # no one is here! start a count and wait for 10 minutes
                     #   before actually turning off the lights
+                    occupancy_printed_time = 0
                     if no_people_time == 0:
                         no_people_time = current_time
                         print(cur_datetime() + ": No one here")
@@ -116,7 +120,10 @@ def main():
                     #   any running counter
                     no_people_time = 0
                     acmepp.setOn()
-                    print(cur_datetime() + ": Occupany detected")
+                    # rate limit printing occupancy detected to once per 5 minutes
+                    if (current_time - occupancy_printed_time) > 5*60:
+                        occupancy_printed_time = current_time
+                        print(cur_datetime() + ": Occupany detected")
 
 def cur_datetime():
     return time.strftime("%m/%d/%Y %H:%M")
