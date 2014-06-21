@@ -3,7 +3,6 @@
 # This script allows an RPI with a button to act as an override for the whereabouts light control
 # Must be run as root!
 
-import signal
 import sys
 import time
 
@@ -56,10 +55,11 @@ def main():
         GPIO.wait_for_edge(BTN_PIN, GPIO.FALLING)
 
         # transmit message to GATD
+        print("Button Pressed!")
         post_to_gatd(data)
 
-        # don't send another message for 5 seconds to ensure there is no bouncing
-        time.sleep(5)
+        # don't send another message for 1 second to ensure there is no bouncing
+        time.sleep(1)
 
 def post_to_gatd(data):
     global BUTTON_POST_ADDR
@@ -95,7 +95,7 @@ def get_location():
         if user_input.isdigit():
             user_input = int(user_input)
             if 0 <= user_input < index:
-                return scan_locations[user_input]
+                return locations[user_input]
             else:
                 print("Invalid selection")
                 sys.exit(1)
@@ -121,12 +121,6 @@ def query_gatd_explorer(key):
     else:
         return ['None']
 
-def sigint_handler(signum, frame):
-    # exit the program if we get a CTRL-C, but first cleanup
-    GPIO.cleanup()
-    sys.exit(0)
-
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, sigint_handler)
     main()
 
