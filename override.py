@@ -54,11 +54,19 @@ def main():
         # wait for a button press
         GPIO.wait_for_edge(BTN_PIN, GPIO.FALLING)
 
+        # check that the button is truly low. I've been getting a lot of false
+        #   positives for whatever reason
+        time.sleep(0.3)
+        if GPIO.input(BTN_PIN) != 0:
+            continue
+
         # transmit message to GATD
         print("Button Pressed!")
         post_to_gatd(data)
 
-        # don't send another message for 1 second to ensure there is no bouncing
+        # don't send another message for 1 second to ensure there is no
+        #   bouncing and that the button has been released (multiple messages
+        #   is acceptable but undesirable)
         time.sleep(1)
 
 def post_to_gatd(data):
