@@ -21,7 +21,7 @@ Locations should be specified in the format:
     University|Building|Room
 
 The following locations have been seen historically:"""
-LOCATAION = ""
+LOCATION = ""
 
 PROFILE_ID = '9YWtcF3MFW'
 BUTTON_GET_ADDR = 'http://inductor.eecs.umich.edu:8085/explore/profile/' + PROFILE_ID
@@ -33,10 +33,10 @@ BTN_PIN = 25
 DEV_MAC_ADDR = hex(get_mac())[2:-1]
 
 def main():
-    global BTN_PIN, DEV_MAC_ADDR
+    global BTN_PIN, DEV_MAC_ADDR, LOCATION
 
     # get location from the user
-    location = get_location()
+    LOCATION = get_location()
 
     # setup GPIO pin
     GPIO.setmode(GPIO.BCM)
@@ -45,7 +45,7 @@ def main():
     # data to be used is constant. Note that a timestamp is automatically
     #   appended
     data = {
-            'location_str': location,
+            'location_str': LOCATION,
             'device_id': DEV_MAC_ADDR,
             'button_id': BTN_PIN
             }
