@@ -37,6 +37,7 @@ def main():
 
     # get location from the user
     LOCATION = get_location()
+    print("Running button override at " + LOCATION)
 
     # setup GPIO pin
     GPIO.setmode(GPIO.BCM)
@@ -56,7 +57,7 @@ def main():
 
         # check that the button is truly low. I've been getting a lot of false
         #   positives for whatever reason
-        time.sleep(0.3)
+        time.sleep(0.1)
         if GPIO.input(BTN_PIN) != 0:
             continue
 
