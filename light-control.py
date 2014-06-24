@@ -123,7 +123,7 @@ def main():
                     # rate limit printing occupancy detected to once per 5 minutes
                     if (current_time - occupancy_printed_time) > 5*60:
                         occupancy_printed_time = current_time
-                        print(cur_datetime() + ": Occupany detected")
+                        print(cur_datetime() + ": Occupancy detected")
 
 def cur_datetime():
     return time.strftime("%m/%d/%Y %H:%M")
