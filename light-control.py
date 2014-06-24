@@ -105,6 +105,9 @@ def main():
         #   of the people current present
         if data_type == 'presence':
             if 'person_list' in pkt:
+                # remove Mike from results since he is a false positive
+                pkt['person_list'].remove({'micharu': "Mike Rushanan"})
+
                 if len(pkt['person_list']) == 0:
                     # no one is here! start a count and wait for 10 minutes
                     #   before actually turning off the lights
