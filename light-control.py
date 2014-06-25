@@ -52,7 +52,6 @@ def main():
     # process packets
     override_time = 0
     no_people_time = 0
-    occupancy_printed_time = 0
     while True:
         timeout = False
         pkt = None
@@ -75,9 +74,8 @@ def main():
         if (no_people_time != 0 and override_time == 0 and
                 (current_time - no_people_time) > 10*60):
             no_people_time = 0
-            occupancy_printed_time = 0
             acmepp.setOff()
-            print(cur_datetime() + ": No occupancy for 10 minutes")
+            print(cur_datetime() + ": Lights off")
 
         # skip packet if it doesn't contain enough data to use
         if (pkt == None or 'location_str' not in pkt or 'time' not in pkt):
@@ -96,9 +94,8 @@ def main():
                 if 'button_id' in pkt and pkt['button_id'] == 25:
                     override_time = current_time
                     no_people_time = 0
-                    occupancy_printed_time = 0
                     acmepp.setOn()
-                    print(cur_datetime() + ": Button Override!")
+                    print(cur_datetime() + ": Button Override! Lights on")
 
         # Presence data
         # This data comes from Whereabouts in single packets containing a list
@@ -113,22 +110,16 @@ def main():
                 if len(pkt['person_list']) == 0:
                     # no one is here! start a count and wait for 10 minutes
                     #   before actually turning off the lights
-                    occupancy_printed_time = 0
                     if no_people_time == 0:
                         no_people_time = current_time
-                        print(cur_datetime() + ": No one here")
-                    else:
-                        print(cur_datetime() + ": Still no one here")
 
                 else:
                     # someone is here! make sure the lights are on and stop
                     #   any running counter
                     no_people_time = 0
+                    if acmepp.on == False:
+                        print(cur_datetime() + ": Lights on")
                     acmepp.setOn()
-                    # rate limit printing occupancy detected to once per 5 minutes
-                    if (current_time - occupancy_printed_time) > 5*60:
-                        occupancy_printed_time = current_time
-                        print(cur_datetime() + ": Occupancy detected")
 
 def cur_datetime():
     return time.strftime("%m/%d/%Y %H:%M")
@@ -189,10 +180,15 @@ class ACMEpp ():
         self.addr = ipv6_addr
         self.port = port
 
+        # actually, it's unknown, but good enough
+        self.on = False
+
     def setOn (self):
+        self.on = True
         self.s.sendto('\x01'.encode(), (self.addr, self.port))
 
     def setOff (self):
+        self.on = False
         self.s.sendto('\x02'.encode(), (self.addr, self.port))
 
 
