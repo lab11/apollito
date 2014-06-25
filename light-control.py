@@ -107,7 +107,7 @@ def main():
             if 'person_list' in pkt:
                 # remove Mike from results since he is a false positive
                 if {'micharu': "Mike Rushanan"} in pkt['person_list']:
-                    print("Mike ignored")
+                    #print("Mike ignored")
                     pkt['person_list'].remove({'micharu': "Mike Rushanan"})
 
                 if len(pkt['person_list']) == 0:
