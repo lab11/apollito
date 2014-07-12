@@ -29,6 +29,8 @@ LOCATION = ""
 
 PRESENCE_PROFILE_ID = 'hsYQx8blbd'
 BUTTON_PROFILE_ID = '9YWtcF3MFW'
+LIGHT_PROFILE_ID = 'UbkhN72jvp'
+LIGHT_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + LIGHT_PROFILE_ID
 
 ACMEpp_IPV6 = '2001:470:1f11:131a:c298:e541:4310:1'
 ACMEpp_PORT = 47652
@@ -124,6 +126,17 @@ def main():
 def cur_datetime():
     return time.strftime("%m/%d/%Y %H:%M")
 
+def post_to_gatd(data):
+    global LIGHT_POST_ADDR
+
+    try:
+        req = urllib2.Request(LIGHT_POST_ADDR)
+        req.add_header('Content-Type', 'application/json')
+        response = urllib2.urlopen(req, json.dumps(data))
+    except (httplib.BadStatusLine, urllib2.URLError), e:
+        # ignore error and carry on
+        print("Failure to POST to GATD: " + str(e))
+
 def get_location(usage, profile_id):
 
     # get location selection from user
@@ -186,10 +199,20 @@ class ACMEpp ():
     def setOn (self):
         self.on = True
         self.s.sendto('\x01'.encode(), (self.addr, self.port))
+        self._post_action('on')
 
     def setOff (self):
         self.on = False
         self.s.sendto('\x02'.encode(), (self.addr, self.port))
+        self._post_action('off')
+
+    def _post_action (self, action):
+        data = {
+                'action': action,
+                'acmepp_addr': self.addr,
+                'acmepp_port': self.port
+                }
+        post_to_gatd(data)
 
 
 class ReceiverThread (Thread):
