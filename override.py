@@ -23,17 +23,20 @@ Locations should be specified in the format:
 The following locations have been seen historically:"""
 LOCATION = ""
 
-PROFILE_ID = '9YWtcF3MFW'
-BUTTON_GET_ADDR = 'http://inductor.eecs.umich.edu:8085/explore/profile/' + PROFILE_ID
-BUTTON_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + PROFILE_ID
+BUTTON_PROFILE_ID = '9YWtcF3MFW'
+BUTTON_GET_ADDR = 'http://inductor.eecs.umich.edu:8085/explore/profile/' + BUTTON_PROFILE_ID
+BUTTON_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + BUTTON_PROFILE_ID
+
+LIGHT_PROFILE_ID = 'UbkhN72jvp'
 
 BTN_PIN = 25
+LIGHT_PIN = 24
 # gets the mac address of the device, in hex, and cuts out the prepended 0x
 #   and appended L
 DEV_MAC_ADDR = hex(get_mac())[2:-1]
 
 def main():
-    global BTN_PIN, DEV_MAC_ADDR, LOCATION
+    global BTN_PIN, LIGHT_PIN, DEV_MAC_ADDR, LOCATION, LIGHT_PROFILE_ID
 
     # get location from the user
     LOCATION = get_location()
@@ -42,6 +45,12 @@ def main():
     # setup GPIO pin
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(BTN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(LIGHT_PIN, GPIO.OUT)
+
+    # start thread to receive data from GATD
+    query = {'location_str': LOCATION}
+    message_queue = Queue.Queue()
+    ReceiverThread(LIGHT_PROFILE_ID, query, 'presence', message_queue)
 
     # data to be used is constant. Note that a timestamp is automatically
     #   appended
@@ -129,6 +138,75 @@ def query_gatd_explorer(key):
         return json_data['location_str'].keys()
     else:
         return ['None']
+
+
+class ReceiverThread (Thread):
+    SOCKETIO_HOST = 'inductor.eecs.umich.edu'
+    SOCKETIO_PORT = 8082
+    SOCKETIO_NAMESPACE = 'stream'
+
+
+    def __init__(self, profile_id, query, data_type, message_queue):
+        super(ReceiverThread, self).__init__()
+        self.daemon = True
+
+        # init data
+        self.profile_id = profile_id
+        self.data_type = data_type
+        self.message_queue = message_queue
+        self.stream_namespace = None
+
+        # make query. Note that this overrides the profile id with the user's
+        #   choice if specified in query
+        profile_query = {'profile_id': profile_id}
+        self.query = dict(list(profile_query.items()) + list(query.items()))
+
+        # start thread
+        self.start()
+
+    def run(self):
+        while True:
+            try:
+                socketIO = sioc.SocketIO(self.SOCKETIO_HOST, self.SOCKETIO_PORT)
+                self.stream_namespace = socketIO.define(StreamReceiver,
+                        '/{}'.format(self.SOCKETIO_NAMESPACE))
+                self.stream_namespace.set_data(self.query, self.data_type, self.message_queue,
+                        self.stream_namespace)
+                socketIO.wait()
+            except sioc.exceptions.ConnectionError:
+                # ignore error and continue
+                socketIO.disconnect()
+
+
+class StreamReceiver (sioc.BaseNamespace):
+
+    def set_data (self, query, data_type, message_queue, stream_namespace):
+        self.query = query
+        self.data_type = data_type
+        self.message_queue = message_queue
+        self.stream_namespace = stream_namespace
+
+    def on_reconnect (self):
+        if 'time' in query:
+            del query['time']
+        self.stream_namespace.emit('query', self.query)
+
+    def on_connect (self):
+        self.stream_namespace.emit('query', self.query)
+
+    def on_data (self, *args):
+        # data received from gatd. Push to msg_q
+        #self.message_queue.put([self.data_type, args[0]])
+
+        # Since I only have one thread, I'm just going to do special functions here
+        global LIGHT_PIN
+        data = args[0]
+        if 'action' in data:
+            if data['action'] == 'off':
+                GPIO.output(LIGHT_PIN, GPIO.HIGH)
+            else:
+                GPIO.output(LIGHT_PIN, GPIO.LOW)
+
 
 if __name__ == "__main__":
     main()
