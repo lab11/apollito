@@ -4,7 +4,9 @@
 # Must be run as root!
 
 import sys
+from threading import Thread
 import time
+import Queue
 
 import RPi.GPIO as GPIO
 from uuid import getnode as get_mac
@@ -12,6 +14,14 @@ from uuid import getnode as get_mac
 import urllib2
 import json
 import httplib
+import socket
+
+try:
+    import socketIO_client as sioc
+except ImportError:
+    print('Could not import the socket.io client library.')
+    print('sudo pip install socketIO-client')
+    sys.exit(1)
 
 USAGE ="""
 Listens for button presses on a Raspberry Pi and POSTs events to GATD
