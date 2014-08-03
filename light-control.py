@@ -76,8 +76,9 @@ def main():
         if (no_people_time != 0 and override_time == 0 and
                 (current_time - no_people_time) > 10*60):
             no_people_time = 0
+            if acmepp.on == True:
+                print(cur_datetime() + ": Lights off")
             acmepp.setOff()
-            print(cur_datetime() + ": Lights off")
 
         # skip packet if it doesn't contain enough data to use
         if (pkt == None or 'location_str' not in pkt or 'time' not in pkt):
