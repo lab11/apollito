@@ -29,6 +29,7 @@ LOCATION = ""
 
 PRESENCE_PROFILE_ID = 'hsYQx8blbd'
 BUTTON_PROFILE_ID = '9YWtcF3MFW'
+LIGHT_COMMAND_PROFILE_ID = 'MUs0XwOiyp'
 LIGHT_PROFILE_ID = 'UbkhN72jvp'
 LIGHT_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + LIGHT_PROFILE_ID
 
@@ -47,38 +48,70 @@ def main():
     message_queue = Queue.Queue()
     ReceiverThread(PRESENCE_PROFILE_ID, query, 'presence', message_queue)
     ReceiverThread(BUTTON_PROFILE_ID, query, 'button', message_queue)
+    ReceiverThread(LIGHT_COMMAND_PROFILE_ID, query, 'command', message_queue)
 
     # Create ACME++ object
     acmepp = ACMEpp(ACMEpp_IPV6, ACMEpp_PORT)
 
     # process packets
-    override_time = 0
-    no_people_time = 0
+    absence_start = 0
+    auto_light_state = 'On'
+
+    temp_override_start = 0
+    prev_temp_override_end = 0
+    temp_override_duration = 30
+    manual_override  = False
+    manual_light_state = 'On'
+
+    state_change = True
     while True:
-        timeout = False
+
+        # process light states
+        if manual_override == True or temp_override_start != 0:
+            # manual control of lights
+            if manual_light_state == 'On':
+                acmepp.setOn()
+                if state_change == True:
+                    print(cur_datetime() + ": Manual lights on")
+            else:
+                acmepp.setOff()
+                if state_change == True:
+                    print(cur_datetime() + ": Manual lights off")
+        else:
+            # automatic control of lights
+            if auto_light_state == 'On':
+                acmepp.setOn()
+                if state_change == True:
+                    print(cur_datetime() + ": Automatic lights on")
+            else:
+                acmepp.setOff()
+                if state_change == True:
+                    print(cur_datetime() + ": Automatic lights off")
+
+        state_change = False
         pkt = None
         try:
             # Pull data from message queue
             [data_type, pkt] = message_queue.get(timeout=10)
         except Queue.Empty:
             # No data has been seen, handle timeouts
-            timeout = True
+            pass
 
         current_time = int(round(time.time()))
 
-        # turn off override mode if it's been a half an hour
-        if override_time != 0 and (current_time - override_time) > 30*60:
-            override_time = 0
+        # turn off override mode if it's been a full duration
+        if temp_override_start != 0 and (current_time - temp_override_start) > temp_override_duration*60:
+            temp_override_start = 0
+            prev_temp_override_end = current_time
+            state_change = True
             print(cur_datetime() + ": Override timed out")
 
-        # turn off lights if it's been ten minutes with no people and the
-        #   override is not enabled
-        if (no_people_time != 0 and override_time == 0 and
-                (current_time - no_people_time) > 10*60):
-            no_people_time = 0
-            if acmepp.on == True:
-                print(cur_datetime() + ": Lights off")
-            acmepp.setOff()
+        # turn off lights if it's been ten minutes with no people
+        if absence_start != 0 and (current_time - absence_start) > 10*60:
+            absence_start = 0
+            auto_light_state = 'Off'
+            state_change = True
+            print(cur_datetime() + ": No one seen for ten minutes")
 
         # skip packet if it doesn't contain enough data to use
         if (pkt == None or 'location_str' not in pkt or 'time' not in pkt):
@@ -95,34 +128,89 @@ def main():
         if data_type == 'button':
             if 'device_id' in pkt and pkt['device_id'] == 'b827eb0a2b8f':
                 if 'button_id' in pkt and pkt['button_id'] == 25:
-                    override_time = current_time
-                    no_people_time = 0
-                    acmepp.setOn()
-                    print(cur_datetime() + ": Button Override! Lights on")
+                    # this is the right button, do action based on state
+                    if manual_override == False:
+                        # determine how long the duration should be
+                        if (prev_temp_override_end != 0 and
+                                (current_time - prev_temp_override_end) < 10*60):
+                            # if the button gets pressed again within 10 minutes of the timeout,
+                            #   double the duration of the temporary override
+                            temp_override_duration *= 2
+                        else:
+                            # otherwise return to a normal duration
+                            temp_override_duration = 30
+
+                        # enable lights for some time
+                        temp_override_start = current_time
+                        prev_temp_override_end = 0
+                        manual_light_state = 'On'
+                        state_change = True
+                        print(cur_datetime() + ": Button Override! Lights on for 30 minutes")
+                    else:
+                        # resume automatic control
+                        temp_override_start = 0
+                        manual_override = False
+                        manual_light_state = 'On'
+                        state_change = True
+                        print(cur_datetime() + ": Button Override! Control resumed")
 
         # Presence data
         # This data comes from Whereabouts in single packets containing a list
         #   of the people current present
-        if data_type == 'presence':
-            if 'person_list' in pkt:
-                # remove Mike from results since he is a false positive
-                if {'micharu': "Mike Rushanan"} in pkt['person_list']:
-                    #print("Mike ignored")
-                    pkt['person_list'].remove({'micharu': "Mike Rushanan"})
+        if data_type == 'presence' and 'person_list' in pkt:
+            if len(pkt['person_list']) == 0:
+                # no one is here! start a count and wait for 10 minutes
+                #   before actually turning off the lights
+                if absence_start == 0 and auto_light_state == 'On':
+                    absence_start = current_time
+            else:
+                # someone is here! make sure the lights are on and stop
+                #   any running counter
+                absence_start = 0
+                if auto_light_state == 'Off':
+                    auto_light_state = 'On'
+                    state_change = True
+                    print(cur_datetime() + ": Someone is seen!")
 
-                if len(pkt['person_list']) == 0:
-                    # no one is here! start a count and wait for 10 minutes
-                    #   before actually turning off the lights
-                    if no_people_time == 0:
-                        no_people_time = current_time
+        # Command data
+        # This data comes from commands sent by the 4908 script. Commands
+        #   include 'stay_on', 'stay_off', 'resume', 'on', and 'off'
+        if data_type == 'command' and 'light_command' in pkt:
+            if pkt['light_command'] == 'on':
+                # temporary override of lights
+                temp_override_start = current_time
+                manual_override = False
+                manual_light_state = 'On'
+                state_change = True
+                print(cur_datetime() + ": Command override! Temporary on")
+            if pkt['light_command'] == 'off':
+                # temporary override of lights
+                temp_override_start = current_time
+                manual_override = False
+                manual_light_state = 'Off'
+                state_change = True
+                print(cur_datetime() + ": Command override! Temporary off")
+            if pkt['light_command'] == 'resume':
+                # turn off manual_control
+                temp_override_start = 0
+                manual_override = False
+                state_change = True
+                print(cur_datetime() + ": Command override! Resume control")
+            if pkt['light_command'] == 'stay_on':
+                # permanent manual control
+                temp_override_start = 0
+                manual_override = True
+                manual_light_state = 'On'
+                state_change = True
+                print(cur_datetime() + ": Command override! Stay on")
+            if pkt['light_command'] == 'stay_off':
+                # permanent manual control
+                temp_override_start = 0
+                manual_override = True
+                manual_light_state = 'Off'
+                state_change = True
+                print(cur_datetime() + ": Command override! Stay off")
 
-                else:
-                    # someone is here! make sure the lights are on and stop
-                    #   any running counter
-                    no_people_time = 0
-                    if acmepp.on == False:
-                        print(cur_datetime() + ": Lights on")
-                    acmepp.setOn()
 
 def cur_datetime():
     return time.strftime("%m/%d/%Y %H:%M")
