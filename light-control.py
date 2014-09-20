@@ -51,7 +51,7 @@ def main():
     ReceiverThread(LIGHT_COMMAND_PROFILE_ID, query, 'command', message_queue)
 
     # Create ACME++ object
-    acmepp = ACMEpp(ACMEpp_IPV6, ACMEpp_PORT)
+    acmepp = ACMEpp(ACMEpp_IPV6, ACMEpp_PORT, LOCATION)
 
     # process packets
     absence_start = 0
@@ -283,10 +283,11 @@ def query_gatd_explorer(profile_id, key):
 
 class ACMEpp ():
 
-    def __init__ (self, ipv6_addr, port):
+    def __init__ (self, ipv6_addr, port, location):
         self.s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         self.addr = ipv6_addr
         self.port = port
+        self.location = location
         self.last_post_time = 0
 
         # actually, it's unknown, but good enough
@@ -317,9 +318,11 @@ class ACMEpp ():
         data = {
                 'action': action,
                 'acmepp_addr': self.addr,
-                'acmepp_port': self.port
+                'acmepp_port': self.port,
+                'location_str': self.location
                 }
         post_to_gatd(data)
+        print(cur_datetime() + ": Posting")
 
 
 class ReceiverThread (Thread):
