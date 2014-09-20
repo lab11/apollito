@@ -67,6 +67,12 @@ def main():
     while True:
 
         # process light states
+        # Note: these command the lights at a minimum of every 10 seconds
+        #   (timeout period) and a maximum of however fast packets arrive.
+        #   This can get kind of fast with macScanner, so it is rate limited
+        #   in the acmepp class to one real transmission per 10 seconds. This
+        #   is okay because we will send another packet within a maximum of 10
+        #   seconds, and the lights don't change that quickly
         if manual_override == True or temp_override_start != 0:
             # manual control of lights
             if manual_light_state == 'On':
@@ -281,19 +287,31 @@ class ACMEpp ():
         self.s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         self.addr = ipv6_addr
         self.port = port
+        self.last_post_time = 0
 
         # actually, it's unknown, but good enough
         self.on = False
 
     def setOn (self):
-        self.on = True
-        self.s.sendto('\x01'.encode(), (self.addr, self.port))
-        self._post_action('on')
+        # only actually send an on packet if rate-limiting say its okay
+        if (self._should_transmit()):
+            self._post_action('on')
+            self.s.sendto('\x01'.encode(), (self.addr, self.port))
+            self.on = True
 
     def setOff (self):
-        self.on = False
-        self.s.sendto('\x02'.encode(), (self.addr, self.port))
-        self._post_action('off')
+        # only actually send an on packet if rate-limiting say its okay
+        if (self._should_transmit()):
+            self._post_action('off')
+            self.s.sendto('\x02'.encode(), (self.addr, self.port))
+            self.on = False
+
+    def _should_transmit (self):
+        # rate-limiting packet transmissions to one per 10 seconds
+        if (time.time() - self.last_post_time) > 10:
+            self.last_post_time = time.time()
+            return true
+        return false
 
     def _post_action (self, action):
         data = {
