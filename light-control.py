@@ -310,8 +310,8 @@ class ACMEpp ():
         # rate-limiting packet transmissions to one per 10 seconds
         if (time.time() - self.last_post_time) > 10:
             self.last_post_time = time.time()
-            return true
-        return false
+            return True
+        return False
 
     def _post_action (self, action):
         data = {
