@@ -322,7 +322,6 @@ class ACMEpp ():
                 'location_str': self.location
                 }
         post_to_gatd(data)
-        print(cur_datetime() + ": Posting")
 
 
 class ReceiverThread (Thread):
