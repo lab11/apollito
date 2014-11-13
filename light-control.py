@@ -76,21 +76,21 @@ def main():
         if manual_override == True or temp_override_start != 0:
             # manual control of lights
             if manual_light_state == 'On':
-                acmepp.setOn()
+                acmepp.setOn(state_change)
                 if state_change == True:
                     print(cur_datetime() + ": Manual lights on")
             else:
-                acmepp.setOff()
+                acmepp.setOff(state_change)
                 if state_change == True:
                     print(cur_datetime() + ": Manual lights off")
         else:
             # automatic control of lights
             if auto_light_state == 'On':
-                acmepp.setOn()
+                acmepp.setOn(state_change)
                 if state_change == True:
                     print(cur_datetime() + ": Automatic lights on")
             else:
-                acmepp.setOff()
+                acmepp.setOff(state_change)
                 if state_change == True:
                     print(cur_datetime() + ": Automatic lights off")
 
@@ -98,7 +98,7 @@ def main():
         pkt = None
         try:
             # Pull data from message queue
-            [data_type, pkt] = message_queue.get(timeout=10)
+            [data_type, pkt] = message_queue.get(timeout=1)
         except Queue.Empty:
             # No data has been seen, handle timeouts
             pass
@@ -282,6 +282,7 @@ def query_gatd_explorer(profile_id, key):
 
 
 class ACMEpp ():
+    transmission_limit = 10.0
 
     def __init__ (self, ipv6_addr, port, location):
         self.s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -293,14 +294,20 @@ class ACMEpp ():
         # actually, it's unknown, but good enough
         self.on = False
 
-    def setOn (self):
+    def setOn (self, state_change):
+        if state_change:
+            self.transmission_limit = 0.25
+
         # only actually send an on packet if rate-limiting say its okay
         if (self._should_transmit()):
             self._post_action('on')
             self.s.sendto('\x01'.encode(), (self.addr, self.port))
             self.on = True
 
-    def setOff (self):
+    def setOff (self, state_change):
+        if state_change:
+            self.transmission_limit = 0.25
+
         # only actually send an on packet if rate-limiting say its okay
         if (self._should_transmit()):
             self._post_action('off')
@@ -308,10 +315,16 @@ class ACMEpp ():
             self.on = False
 
     def _should_transmit (self):
-        # rate-limiting packet transmissions to one per 10 seconds
-        if (time.time() - self.last_post_time) > 10:
+        # rate-limiting packet transmissions
+        if (time.time() - self.last_post_time) > self.transmission_limit:
             self.last_post_time = time.time()
             return True
+
+        # exponential backoff
+        self.transmission_limit *= 2
+        if self.transmission_limit > 10.0:
+            self.transmission_limit = 10.0
+
         return False
 
     def _post_action (self, action):
