@@ -159,6 +159,12 @@ def main():
             state_change = True
             print(cur_datetime() + ": No one seen for ten minutes")
 
+        # turn off the panel too
+        if auto_panel_state == 'On':
+            if (current_time - panel_last_seen) > 10*60:
+                auto_panel_state = 'Off'
+                panel_change = True
+
         # skip packet if it doesn't contain enough data to use
         if (pkt == None or 'location_str' not in pkt or 'time' not in pkt):
             continue
@@ -209,12 +215,6 @@ def main():
                 #   before actually turning off the lights
                 if absence_start == 0 and auto_light_state == 'On':
                     absence_start = current_time
-
-                # turn off the panel too
-                if auto_panel_state == 'On':
-                    if (current_time - panel_last_seen) > 10*60:
-                        auto_panel_state = 'Off'
-                        panel_change = True
             else:
                 # someone is here! make sure the lights are on and stop
                 #   any running counter
@@ -226,16 +226,10 @@ def main():
 
                 # turn on or off light panel based on people who like it
                 if auto_panel_state == 'On':
-                    if any(PANEL_PEOPLE) in pkt['person_list']:
+                    if any(person in pkt['person_list'] for person in PANEL_PEOPLE):
                         panel_last_seen = current_time
-                    else:
-                        # only turn off light panel if they haven't been seen
-                        #   for ten minutes
-                        if (current_time - panel_last_seen) > 10*60:
-                            auto_panel_state = 'Off'
-                            panel_change = True
                 else:
-                    if any(PANEL_PEOPLE) in pkt['person_list']:
+                    if any(person in pkt['person_list'] for person in PANEL_PEOPLE):
                         panel_last_seen = current_time
                         auto_panel_state = 'On'
                         panel_change = True
