@@ -161,7 +161,7 @@ def main():
 
         # turn off the panel too
         if auto_panel_state == 'On':
-            if (current_time - panel_last_seen) > 10*60:
+            if (current_time - panel_last_seen) > 30*60:
                 auto_panel_state = 'Off'
                 panel_change = True
 
