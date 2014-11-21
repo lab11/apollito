@@ -36,6 +36,10 @@ LIGHT_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + LIGHT_PROFILE_ID
 ACMEpp_IPV6 = '2607:f018:800:10f:c298:e541:4310:1'
 ACMEpp_PORT = 47652
 
+PANEL_PEOPLE = [{'samkuo': 'Ye-Sheng Kuo'}]
+PANEL_IPV6 = '2607:f018:800:10f:c298:e541:4310:8'
+PANEL_PORT = 47652
+
 def main():
     global LOCATION, USAGE, BUTTON_PROFILE_ID, PRESENCE_PROFILE_ID
 
@@ -51,19 +55,28 @@ def main():
     ReceiverThread(LIGHT_COMMAND_PROFILE_ID, query, 'command', message_queue)
 
     # Create ACME++ object
-    acmepp = ACMEpp(ACMEpp_IPV6, ACMEpp_PORT, LOCATION)
+    acmepp = ACMEpp(ACMEpp_IPV6, ACMEpp_PORT, 'lights', LOCATION)
+    panel  = ACMEpp(PANEL_IPV6, PANEL_PORT, 'panel', LOCATION)
 
-    # process packets
+    # variables for various states
+    temp_override_duration = 30
+
     absence_start = 0
     auto_light_state = 'On'
-
     temp_override_start = 0
     prev_temp_override_end = 0
-    temp_override_duration = 30
     manual_override  = False
     manual_light_state = 'On'
-
     state_change = True
+
+    panel_last_seen = 0
+    auto_panel_state = 'Off'
+    panel_temp_override_start = 0
+    panel_manual_override = False
+    manual_panel_state = 'Off'
+    panel_change = True
+
+    # process packets
     while True:
 
         # process light states
@@ -93,8 +106,29 @@ def main():
                 acmepp.setOff(state_change)
                 if state_change == True:
                     print(cur_datetime() + ": Automatic lights off")
-
+        if panel_manual_override == True or panel_temp_override_start != 0:
+            # manual control of panel
+            if manual_panel_state == 'On':
+                panel.setOn(panel_change)
+                if panel_change == True:
+                    print(cur_datetime() + ": Manual panel on")
+            else:
+                panel.setOff(panel_change)
+                if panel_change == True:
+                    print(cur_datetime() + ": Manual panel off")
+        else:
+            # automatic control of panel
+            if auto_panel_state == 'On':
+                panel.setOn(panel_change)
+                if panel_change == True:
+                    print(cur_datetime() + ": Automatic panel on")
+            else:
+                panel.setOff(panel_change)
+                if panel_change == True:
+                    print(cur_datetime() + ": Automatic panel off")
+        panel_change = False
         state_change = False
+
         pkt = None
         try:
             # Pull data from message queue
@@ -110,7 +144,13 @@ def main():
             temp_override_start = 0
             prev_temp_override_end = current_time
             state_change = True
-            print(cur_datetime() + ": Override timed out")
+            print(cur_datetime() + ": Override lights timed out")
+        if (panel_temp_override_start != 0 and
+                (current_time - panel_temp_override_start) > temp_override_duration*60):
+            panel_temp_override_start = 0
+            # no need to do the backoff stuff
+            panel_change = True
+            print(cur_datetime() + ": Override panel timed out")
 
         # turn off lights if it's been ten minutes with no people
         if absence_start != 0 and (current_time - absence_start) > 10*60:
@@ -169,6 +209,12 @@ def main():
                 #   before actually turning off the lights
                 if absence_start == 0 and auto_light_state == 'On':
                     absence_start = current_time
+
+                # turn off the panel too
+                if auto_panel_state == 'On':
+                    if (current_time - panel_last_seen) > 10*60:
+                        auto_panel_state = 'Off'
+                        panel_change = True
             else:
                 # someone is here! make sure the lights are on and stop
                 #   any running counter
@@ -177,6 +223,22 @@ def main():
                     auto_light_state = 'On'
                     state_change = True
                     print(cur_datetime() + ": Someone is seen!")
+
+                # turn on or off light panel based on people who like it
+                if auto_panel_state == 'On':
+                    if any(PANEL_PEOPLE) in pkt['person_list']:
+                        panel_last_seen = current_time
+                    else:
+                        # only turn off light panel if they haven't been seen
+                        #   for ten minutes
+                        if (current_time - panel_last_seen) > 10*60:
+                            auto_panel_state = 'Off'
+                            panel_change = True
+                else:
+                    if any(PANEL_PEOPLE) in pkt['person_list']:
+                        panel_last_seen = current_time
+                        auto_panel_state = 'On'
+                        panel_change = True
 
         # Command data
         # This data comes from commands sent by the 4908 script. Commands
@@ -196,12 +258,6 @@ def main():
                 manual_light_state = 'Off'
                 state_change = True
                 print(cur_datetime() + ": Command override! Temporary off")
-            if pkt['light_command'] == 'resume':
-                # turn off manual_control
-                temp_override_start = 0
-                manual_override = False
-                state_change = True
-                print(cur_datetime() + ": Command override! Resume control")
             if pkt['light_command'] == 'stay_on':
                 # permanent manual control
                 temp_override_start = 0
@@ -216,6 +272,45 @@ def main():
                 manual_light_state = 'Off'
                 state_change = True
                 print(cur_datetime() + ": Command override! Stay off")
+
+            if pkt['light_command'] == 'panel_on':
+                # temporary override of panel
+                panel_temp_override_start = current_time
+                panel_manual_override = False
+                manual_panel_state = 'On'
+                panel_change = True
+                print(cur_datetime() + ": Command override! Temporary panel on")
+            if pkt['light_command'] == 'panel_off':
+                # temporary override of panel
+                panel_temp_override_start = current_time
+                panel_manual_override = False
+                manual_panel_state = 'Off'
+                panel_change = True
+                print(cur_datetime() + ": Command override! Temporary panel off")
+            if pkt['light_command'] == 'panel_stay_on':
+                # permanent manual control
+                panel_temp_override_start = 0
+                panel_manual_override = True
+                manual_panel_state = 'On'
+                panel_change = True
+                print(cur_datetime() + ": Command override! Panel stay on")
+            if pkt['light_command'] == 'panel_stay_off':
+                # permanent manual control
+                panel_temp_override_start = 0
+                panel_manual_override = True
+                manual_panel_state = 'Off'
+                panel_change = True
+                print(cur_datetime() + ": Command override! Panel stay off")
+
+            if pkt['light_command'] == 'resume':
+                # turn off manual_control
+                temp_override_start = 0
+                manual_override = False
+                state_change = True
+                panel_temp_override_start = 0
+                panel_manual_override = False
+                panel_change = True
+                print(cur_datetime() + ": Command override! Resume control")
 
 
 def cur_datetime():
@@ -284,10 +379,11 @@ def query_gatd_explorer(profile_id, key):
 class ACMEpp ():
     transmission_limit = 10.0
 
-    def __init__ (self, ipv6_addr, port, location):
+    def __init__ (self, ipv6_addr, port, name, location):
         self.s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         self.addr = ipv6_addr
         self.port = port
+        self.name = name
         self.location = location
         self.last_post_time = 0
 
@@ -332,6 +428,7 @@ class ACMEpp ():
                 'action': action,
                 'acmepp_addr': self.addr,
                 'acmepp_port': self.port,
+                'name': self.name,
                 'location_str': self.location
                 }
         post_to_gatd(data)
