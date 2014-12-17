@@ -34,8 +34,8 @@ The following locations have been seen historically:"""
 LOCATION = ""
 
 BUTTON_PROFILE_ID = '9YWtcF3MFW'
-BUTTON_GET_ADDR = 'http://inductor.eecs.umich.edu:8085/explore/profile/' + BUTTON_PROFILE_ID
-BUTTON_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + BUTTON_PROFILE_ID
+BUTTON_GET_ADDR = 'http://gatd.eecs.umich.edu:8085/explore/profile/' + BUTTON_PROFILE_ID
+BUTTON_POST_ADDR = 'http://gatd.eecs.umich.edu:8081/' + BUTTON_PROFILE_ID
 
 LIGHT_PROFILE_ID = 'UbkhN72jvp'
 
@@ -151,7 +151,7 @@ def query_gatd_explorer(key):
 
 
 class ReceiverThread (Thread):
-    SOCKETIO_HOST = 'inductor.eecs.umich.edu'
+    SOCKETIO_HOST = 'gatd.eecs.umich.edu'
     SOCKETIO_PORT = 8082
     SOCKETIO_NAMESPACE = 'stream'
 

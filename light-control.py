@@ -31,7 +31,7 @@ PRESENCE_PROFILE_ID = 'hsYQx8blbd'
 BUTTON_PROFILE_ID = '9YWtcF3MFW'
 LIGHT_COMMAND_PROFILE_ID = 'MUs0XwOiyp'
 LIGHT_PROFILE_ID = 'UbkhN72jvp'
-LIGHT_POST_ADDR = 'http://inductor.eecs.umich.edu:8081/' + LIGHT_PROFILE_ID
+LIGHT_POST_ADDR = 'http://gatd.eecs.umich.edu:8081/' + LIGHT_PROFILE_ID
 
 ACMEpp_IPV6 = '2607:f018:800:10f:c298:e541:4310:1'
 ACMEpp_PORT = 47652
@@ -353,7 +353,7 @@ def get_location(usage, profile_id):
         return sys.argv[1]
 
 def query_gatd_explorer(profile_id, key):
-    explorer_addr = 'http://inductor.eecs.umich.edu:8085/explore/profile/' + profile_id
+    explorer_addr = 'http://gatd.eecs.umich.edu:8085/explore/profile/' + profile_id
 
     # query GATD explorer to find scan locations
     try:
@@ -429,7 +429,7 @@ class ACMEpp ():
 
 
 class ReceiverThread (Thread):
-    SOCKETIO_HOST = 'inductor.eecs.umich.edu'
+    SOCKETIO_HOST = 'gatd.eecs.umich.edu'
     SOCKETIO_PORT = 8082
     SOCKETIO_NAMESPACE = 'stream'
 
