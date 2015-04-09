@@ -40,6 +40,9 @@ PANEL_PEOPLE = [{'samkuo': 'Ye-Sheng Kuo'}]
 PANEL_IPV6 = '2607:f018:800:10f:c298:e541:4310:8'
 PANEL_PORT = 47652
 
+# Panel is only allowed on between 6 AM and 9 PM
+PANEL_ALLOWED_HOURS = range(6,21)
+
 def main():
     global LOCATION, USAGE, BUTTON_PROFILE_ID, PRESENCE_PROFILE_ID
 
@@ -106,7 +109,11 @@ def main():
                 acmepp.setOff(state_change)
                 if state_change == True:
                     print(cur_datetime() + ": Automatic lights off")
-        if panel_manual_override == True or panel_temp_override_start != 0:
+        if int(time.strftime("%H")) not in PANEL_ALLOWED_HOURS:
+            panel.setOff(panel_change)
+            if panel_change == True:
+                print(cur_datetime() + ": Time of day panel off")
+        elif panel_manual_override == True or panel_temp_override_start != 0:
             # manual control of panel
             if manual_panel_state == 'On':
                 panel.setOn(panel_change)
